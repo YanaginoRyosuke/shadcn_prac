@@ -1,0 +1,60 @@
+volumes:
+  db_data:
+  gunicorn:
+    driver: local
+
+services:
+  db:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: practice
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      tz: "Asia/Tokyo"
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  app-back:
+    env_file: .env.dev
+    build:
+      context: ./docker/python
+      dockerfile: Dockerfile
+    tty: true
+    volumes:
+      - ./apps/backend:/app
+      - gunicorn:/var/run/gunicorn
+    environment:
+      - chokidar_usepolling=true
+      - django_settings_module=config.local_settings
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  app-front:
+    env_file: .env.dev
+    build: 
+      context: ./docker/node
+      dockerfile: Dockerfile
+    tty: true
+    volumes:
+      - ./apps/frontend:/app
+    ports:
+      - "3000:3000"
+    command: bash -c "npm install && npm run dev"
+
+  web:
+    build: 
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    tty: true
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
+      - gunicorn:/var/run/gunicorn
+    depends_on:
+      - app-back
